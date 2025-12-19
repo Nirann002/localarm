@@ -9,54 +9,54 @@
 
 @layer base {
   :root {
-    /* Soft, calming cream/slate palette */
-    --background: 40 20% 97%;
-    --foreground: 220 20% 15%;
+    /* Dark mode as default - deep navy/charcoal */
+    --background: 220 25% 8%;
+    --foreground: 40 15% 95%;
 
-    --card: 40 15% 95%;
-    --card-foreground: 220 20% 15%;
+    --card: 220 25% 12%;
+    --card-foreground: 40 15% 95%;
 
-    --popover: 40 15% 95%;
-    --popover-foreground: 220 20% 15%;
+    --popover: 220 25% 12%;
+    --popover-foreground: 40 15% 95%;
 
     /* Warm amber accent for alerts */
     --primary: 35 95% 55%;
     --primary-foreground: 220 20% 10%;
 
-    /* Soft sage secondary */
-    --secondary: 170 25% 90%;
-    --secondary-foreground: 170 30% 25%;
+    /* Teal secondary */
+    --secondary: 175 30% 18%;
+    --secondary-foreground: 175 40% 85%;
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 220 20% 15%;
+    --muted-foreground: 220 10% 55%;
 
     /* Teal accent for active states */
     --accent: 175 45% 45%;
     --accent-foreground: 0 0% 100%;
 
     /* Alert red for alarm */
-    --destructive: 10 85% 55%;
+    --destructive: 10 85% 50%;
     --destructive-foreground: 0 0% 100%;
 
     /* Alarm amber - urgent */
     --alarm: 25 100% 50%;
     --alarm-foreground: 0 0% 100%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
     --ring: 35 95% 55%;
 
     --radius: 1rem;
 
-    /* Map placeholder */
-    --map-bg: 200 20% 85%;
-    --map-water: 200 50% 70%;
-    --map-land: 120 15% 88%;
+    /* Map placeholder - dark */
+    --map-bg: 220 20% 12%;
+    --map-water: 210 40% 20%;
+    --map-land: 150 10% 18%;
 
     /* Tracking pulse */
     --pulse-color: 175 45% 45%;
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 220 25% 10%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
