@@ -12,6 +12,7 @@ const Index = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [destination, setDestination] = useState("");
   const [radius, setRadius] = useState(300);
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -25,19 +26,10 @@ const Index = () => {
         return (
           <DestinationScreen
             onBack={() => setCurrentScreen("welcome")}
-            onConfirm={(dest) => {
+            onConfirm={(dest, r, coords) => {
               setDestination(dest);
-              setCurrentScreen("radius");
-            }}
-          />
-        );
-      case "radius":
-        return (
-          <RadiusScreen
-            destination={destination}
-            onBack={() => setCurrentScreen("destination")}
-            onContinue={(r) => {
               setRadius(r);
+              setDestinationCoords(coords);
               setCurrentScreen("tracking");
             }}
           />
@@ -47,6 +39,12 @@ const Index = () => {
           <TrackingScreen
             destination={destination}
             radius={radius}
+            onStop={() => setCurrentScreen("welcome")}
+          />
+        );
+      case "alarm":
+        return (
+          <AlarmScreen
             onStop={() => setCurrentScreen("welcome")}
           />
         );
