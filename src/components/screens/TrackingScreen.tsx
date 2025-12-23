@@ -6,10 +6,9 @@ interface TrackingScreenProps {
   destination: string;
   radius: number;
   onStop: () => void;
-  onSimulateArrival: () => void;
 }
 
-const TrackingScreen = ({ destination, radius, onStop, onSimulateArrival }: TrackingScreenProps) => {
+const TrackingScreen = ({ destination, radius, onStop }: TrackingScreenProps) => {
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
@@ -100,15 +99,7 @@ const TrackingScreen = ({ destination, radius, onStop, onSimulateArrival }: Trac
       </div>
 
       {/* Bottom actions */}
-      <div className="p-6 space-y-3">
-        <Button 
-          onClick={onSimulateArrival}
-          variant="accent"
-          className="w-full"
-          size="lg"
-        >
-          Simulate Arrival (Demo)
-        </Button>
+      <div className="p-6">
         <Button 
           onClick={onStop}
           variant="outline"

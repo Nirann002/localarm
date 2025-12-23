@@ -1,27 +1,14 @@
 import { motion } from "framer-motion";
-import { MapPin, Bell, Settings } from "lucide-react";
+import { MapPin, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface WelcomeScreenProps {
   onSetDestination: () => void;
-  onOpenSettings: () => void;
 }
 
-const WelcomeScreen = ({ onSetDestination, onOpenSettings }: WelcomeScreenProps) => {
+const WelcomeScreen = ({ onSetDestination }: WelcomeScreenProps) => {
   return (
     <div className="h-full flex flex-col bg-background px-6 py-8 relative">
-      {/* Settings button */}
-      <motion.button
-        onClick={onOpenSettings}
-        className="absolute top-2 right-2 w-11 h-11 rounded-full bg-muted flex items-center justify-center hover:bg-muted-foreground/20 transition-colors"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Settings className="w-5 h-5 text-muted-foreground" />
-      </motion.button>
       {/* Logo and branding */}
       <motion.div 
         className="flex-1 flex flex-col items-center justify-center"
