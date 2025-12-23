@@ -61,9 +61,6 @@ const Index = () => {
         return (
           <AlarmScreen
             onStop={() => setCurrentScreen("welcome")}
-            onSnooze={() => {
-              setCurrentScreen("tracking");
-            }}
           />
         );
       case "settings":
