@@ -5,18 +5,13 @@ import DestinationScreen from "@/components/screens/DestinationScreen";
 import RadiusScreen from "@/components/screens/RadiusScreen";
 import TrackingScreen from "@/components/screens/TrackingScreen";
 import AlarmScreen from "@/components/screens/AlarmScreen";
-import SettingsScreen, { AppSettings } from "@/components/screens/SettingsScreen";
 
-type Screen = "welcome" | "destination" | "radius" | "tracking" | "alarm" | "settings";
+type Screen = "welcome" | "destination" | "radius" | "tracking" | "alarm";
 
 const Index = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [destination, setDestination] = useState("");
   const [radius, setRadius] = useState(300);
-  const [settings, setSettings] = useState<AppSettings>({
-    alarmSound: "gentle",
-    vibrationPattern: "standard",
-  });
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -24,7 +19,6 @@ const Index = () => {
         return (
           <WelcomeScreen 
             onSetDestination={() => setCurrentScreen("destination")}
-            onOpenSettings={() => setCurrentScreen("settings")}
           />
         );
       case "destination":
@@ -54,21 +48,6 @@ const Index = () => {
             destination={destination}
             radius={radius}
             onStop={() => setCurrentScreen("welcome")}
-            onSimulateArrival={() => setCurrentScreen("alarm")}
-          />
-        );
-      case "alarm":
-        return (
-          <AlarmScreen
-            onStop={() => setCurrentScreen("welcome")}
-          />
-        );
-      case "settings":
-        return (
-          <SettingsScreen
-            onBack={() => setCurrentScreen("welcome")}
-            settings={settings}
-            onSaveSettings={setSettings}
           />
         );
     }
