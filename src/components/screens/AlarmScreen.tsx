@@ -1,13 +1,76 @@
 import { motion } from "framer-motion";
-import { Bell, X, Clock } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useRef } from "react";
 
 interface AlarmScreenProps {
   onStop: () => void;
-  onSnooze: () => void;
 }
 
-const AlarmScreen = ({ onStop, onSnooze }: AlarmScreenProps) => {
+const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Create and play alarm sound
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    const playAlarm = () => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'square';
+      gainNode.gain.value = 0.3;
+      
+      oscillator.start();
+      
+      // Pulsing alarm effect
+      const pulseAlarm = () => {
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.2);
+      };
+      
+      const intervalId = setInterval(pulseAlarm, 400);
+      
+      return { oscillator, intervalId };
+    };
+
+    const { oscillator, intervalId } = playAlarm();
+
+    // Trigger vibration if supported
+    if ('vibrate' in navigator) {
+      const vibratePattern = () => {
+        navigator.vibrate([500, 200, 500, 200, 500]);
+      };
+      vibratePattern();
+      const vibrateIntervalId = setInterval(vibratePattern, 1600);
+      
+      return () => {
+        oscillator.stop();
+        clearInterval(intervalId);
+        clearInterval(vibrateIntervalId);
+        navigator.vibrate(0);
+        audioContext.close();
+      };
+    }
+
+    return () => {
+      oscillator.stop();
+      clearInterval(intervalId);
+      audioContext.close();
+    };
+  }, []);
+
+  const handleStop = () => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(0);
+    }
+    onStop();
+  };
+
   return (
     <motion.div 
       className="h-full flex flex-col bg-alarm p-6 relative overflow-hidden"
@@ -22,8 +85,8 @@ const AlarmScreen = ({ onStop, onSnooze }: AlarmScreenProps) => {
             key={i}
             className="absolute w-64 h-64 rounded-full bg-alarm-foreground/5"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${20 + i * 15}%`,
+              top: `${10 + i * 18}%`,
             }}
             animate={{
               scale: [1, 1.5, 1],
@@ -57,11 +120,11 @@ const AlarmScreen = ({ onStop, onSnooze }: AlarmScreenProps) => {
           animate={{ scale: [1, 1.02, 1] }}
           transition={{ duration: 0.8, repeat: Infinity }}
         >
-          <h1 className="text-3xl font-bold text-alarm-foreground mb-3 animate-alarm-pulse">
-            YOU'VE REACHED
+          <h1 className="text-2xl font-bold text-alarm-foreground mb-3 animate-alarm-pulse">
+            YOU ARE APPROACHING
           </h1>
-          <h1 className="text-4xl font-bold text-alarm-foreground animate-alarm-pulse">
-            YOUR STOP
+          <h1 className="text-3xl font-bold text-alarm-foreground animate-alarm-pulse">
+            YOUR DESTINATION
           </h1>
         </motion.div>
 
@@ -72,41 +135,25 @@ const AlarmScreen = ({ onStop, onSnooze }: AlarmScreenProps) => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          Time to get off!
+          Time to get ready!
         </motion.p>
       </div>
 
-      {/* Action buttons */}
-      <div className="relative z-10 space-y-4">
+      {/* Action button */}
+      <div className="relative z-10">
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
           <Button 
-            onClick={onStop}
+            onClick={handleStop}
             variant="alarm"
             size="xl"
             className="w-full bg-alarm-foreground text-alarm hover:bg-alarm-foreground/90"
           >
             <X className="w-6 h-6" />
             Stop Alarm
-          </Button>
-        </motion.div>
-
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Button 
-            onClick={onSnooze}
-            variant="alarmSecondary"
-            size="lg"
-            className="w-full"
-          >
-            <Clock className="w-5 h-5" />
-            Snooze for 1 minute
           </Button>
         </motion.div>
       </div>
