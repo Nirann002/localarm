@@ -1,26 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { MapPin, ArrowLeft, Navigation, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 
 interface DestinationScreenProps {
   onBack: () => void;
   onConfirm: (destination: string, radius: number, coords: { lat: number; lng: number }) => void;
 }
-
-// Component to handle map clicks
-const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
-  useMapEvents({
-    click: (e) => {
-      onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-};
 
 const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -28,26 +15,13 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
   const [radius, setRadius] = useState(300);
   const [isLoading, setIsLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
-
-  // Create icons with useMemo to avoid recreation
-  const userLocationIcon = useMemo(() => L.divIcon({
-    className: "user-location-marker",
-    html: `<div style="width: 20px; height: 20px; background: hsl(175, 45%, 45%); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
-    iconSize: [20, 20] as [number, number],
-    iconAnchor: [10, 10] as [number, number],
-  }), []);
-
-  const destinationIcon = useMemo(() => L.divIcon({
-    className: "destination-marker",
-    html: `<div style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="hsl(35, 95%, 55%)" stroke="white" stroke-width="1.5">
-        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-        <circle cx="12" cy="10" r="3" fill="white"/>
-      </svg>
-    </div>`,
-    iconSize: [30, 30] as [number, number],
-    iconAnchor: [15, 30] as [number, number],
-  }), []);
+  const [mapReady, setMapReady] = useState(false);
+  
+  const mapRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<any>(null);
+  const userMarkerRef = useRef<any>(null);
+  const destMarkerRef = useRef<any>(null);
+  const radiusCircleRef = useRef<any>(null);
 
   // Get user's current location
   useEffect(() => {
@@ -63,7 +37,6 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         (error) => {
           console.error("Geolocation error:", error);
           setLocationError("Could not get your location. Please enable location services.");
-          // Default to a fallback location
           setUserLocation({ lat: 51.505, lng: -0.09 });
           setIsLoading(false);
         },
@@ -76,13 +49,123 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
     }
   }, []);
 
-  const handleMapClick = (lat: number, lng: number) => {
-    setDestinationCoords({ lat, lng });
-  };
+  // Initialize Leaflet map imperatively
+  useEffect(() => {
+    if (!userLocation || !mapRef.current || leafletMapRef.current) return;
+
+    const initMap = async () => {
+      const L = (await import("leaflet")).default;
+      await import("leaflet/dist/leaflet.css");
+
+      // Create map
+      const map = L.map(mapRef.current!, {
+        center: [userLocation.lat, userLocation.lng],
+        zoom: 15,
+        zoomControl: true,
+      });
+
+      // Add tile layer
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      // Create user location marker
+      const userIcon = L.divIcon({
+        className: "user-location-marker",
+        html: `<div style="width: 20px; height: 20px; background: hsl(175, 45%, 45%); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+
+      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon }).addTo(map);
+
+      // Handle map clicks
+      map.on("click", (e: any) => {
+        const { lat, lng } = e.latlng;
+        setDestinationCoords({ lat, lng });
+      });
+
+      leafletMapRef.current = map;
+      setMapReady(true);
+    };
+
+    initMap();
+
+    return () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+  }, [userLocation]);
+
+  // Update destination marker and radius circle
+  useEffect(() => {
+    if (!leafletMapRef.current || !mapReady) return;
+
+    const updateMarkers = async () => {
+      const L = (await import("leaflet")).default;
+
+      // Remove existing destination marker
+      if (destMarkerRef.current) {
+        destMarkerRef.current.remove();
+        destMarkerRef.current = null;
+      }
+
+      // Remove existing radius circle
+      if (radiusCircleRef.current) {
+        radiusCircleRef.current.remove();
+        radiusCircleRef.current = null;
+      }
+
+      if (destinationCoords) {
+        // Create destination marker
+        const destIcon = L.divIcon({
+          className: "destination-marker",
+          html: `<div style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="hsl(35, 95%, 55%)" stroke="white" stroke-width="1.5">
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+              <circle cx="12" cy="10" r="3" fill="white"/>
+            </svg>
+          </div>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 30],
+        });
+
+        destMarkerRef.current = L.marker([destinationCoords.lat, destinationCoords.lng], { icon: destIcon }).addTo(leafletMapRef.current);
+
+        // Create radius circle
+        radiusCircleRef.current = L.circle([destinationCoords.lat, destinationCoords.lng], {
+          radius: radius,
+          color: "hsl(35, 95%, 55%)",
+          fillColor: "hsl(35, 95%, 55%)",
+          fillOpacity: 0.15,
+          weight: 2,
+        }).addTo(leafletMapRef.current);
+      }
+    };
+
+    updateMarkers();
+  }, [destinationCoords, radius, mapReady]);
 
   const handleConfirm = () => {
     if (destinationCoords) {
       onConfirm("Selected Destination", radius, destinationCoords);
+    }
+  };
+
+  const centerOnUser = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const newLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setUserLocation(newLocation);
+        if (leafletMapRef.current) {
+          leafletMapRef.current.setView([newLocation.lat, newLocation.lng], 15);
+        }
+      });
     }
   };
 
@@ -120,41 +203,11 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
 
       {/* Map */}
       <div className="flex-1 relative">
-        {userLocation && (
-          <MapContainer
-            center={[userLocation.lat, userLocation.lng]}
-            zoom={15}
-            className="h-full w-full"
-            zoomControl={true}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <MapClickHandler onMapClick={handleMapClick} />
-            
-            {/* User location marker */}
-            <Marker position={[userLocation.lat, userLocation.lng]} icon={userLocationIcon} />
-            
-            {/* Destination marker */}
-            {destinationCoords && (
-              <Marker position={[destinationCoords.lat, destinationCoords.lng]} icon={destinationIcon} />
-            )}
-          </MapContainer>
-        )}
+        <div ref={mapRef} className="h-full w-full" />
 
         {/* Center on user button */}
         <button
-          onClick={() => {
-            if (userLocation && "geolocation" in navigator) {
-              navigator.geolocation.getCurrentPosition((position) => {
-                setUserLocation({
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                });
-              });
-            }
-          }}
+          onClick={centerOnUser}
           className="absolute bottom-32 right-4 z-[1000] w-12 h-12 rounded-full bg-card shadow-lg flex items-center justify-center border border-border hover:bg-muted transition-colors"
         >
           <Navigation className="w-5 h-5 text-accent" />
