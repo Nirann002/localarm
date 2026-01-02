@@ -2,11 +2,10 @@ import { useState } from "react";
 import MobileFrame from "@/components/MobileFrame";
 import WelcomeScreen from "@/components/screens/WelcomeScreen";
 import DestinationScreen from "@/components/screens/DestinationScreen";
-import RadiusScreen from "@/components/screens/RadiusScreen";
 import TrackingScreen from "@/components/screens/TrackingScreen";
 import AlarmScreen from "@/components/screens/AlarmScreen";
 
-type Screen = "welcome" | "destination" | "radius" | "tracking" | "alarm";
+type Screen = "welcome" | "destination" | "tracking" | "alarm";
 
 const Index = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
@@ -39,7 +38,9 @@ const Index = () => {
           <TrackingScreen
             destination={destination}
             radius={radius}
+            destinationCoords={destinationCoords!}
             onStop={() => setCurrentScreen("welcome")}
+            onArrival={() => setCurrentScreen("alarm")}
           />
         );
       case "alarm":

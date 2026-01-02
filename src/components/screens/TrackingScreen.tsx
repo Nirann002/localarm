@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Moon, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -5,10 +6,96 @@ import { Button } from "@/components/ui/button";
 interface TrackingScreenProps {
   destination: string;
   radius: number;
+  destinationCoords: { lat: number; lng: number };
   onStop: () => void;
+  onArrival: () => void;
 }
 
-const TrackingScreen = ({ destination, radius, onStop }: TrackingScreenProps) => {
+// Calculate distance between two coordinates in meters using Haversine formula
+const calculateDistance = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number => {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArrival }: TrackingScreenProps) => {
+  const [currentDistance, setCurrentDistance] = useState<number | null>(null);
+  const [isTracking, setIsTracking] = useState(true);
+  const watchIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!("geolocation" in navigator)) {
+      console.error("Geolocation not supported");
+      return;
+    }
+
+    // Start continuous GPS tracking
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const distance = calculateDistance(
+          latitude,
+          longitude,
+          destinationCoords.lat,
+          destinationCoords.lng
+        );
+        
+        setCurrentDistance(Math.round(distance));
+
+        // Check if within radius
+        if (distance <= radius) {
+          setIsTracking(false);
+          if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+          }
+          onArrival();
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0,
+      }
+    );
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [destinationCoords, radius, onArrival]);
+
+  const handleStop = () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+    onStop();
+  };
+
+  const formatDistance = (distance: number | null): string => {
+    if (distance === null) return "Calculating...";
+    if (distance >= 1000) {
+      return `${(distance / 1000).toFixed(1)} km away`;
+    }
+    return `${distance} m away`;
+  };
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
@@ -87,6 +174,26 @@ const TrackingScreen = ({ destination, radius, onStop }: TrackingScreenProps) =>
           </div>
         </motion.div>
 
+        {/* Live distance indicator */}
+        <motion.div 
+          className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Current distance</span>
+            <motion.span 
+              className="text-lg font-bold text-primary"
+              key={currentDistance}
+              initial={{ scale: 1.1 }}
+              animate={{ scale: 1 }}
+            >
+              {formatDistance(currentDistance)}
+            </motion.span>
+          </div>
+        </motion.div>
+
         {/* Tracking indicator */}
         <motion.div 
           className="flex items-center gap-2 mt-6 text-muted-foreground"
@@ -94,14 +201,14 @@ const TrackingScreen = ({ destination, radius, onStop }: TrackingScreenProps) =>
           transition={{ duration: 2, repeat: Infinity }}
         >
           <Navigation className="w-4 h-4" />
-          <span className="text-sm">Tracking your location in the background</span>
+          <span className="text-sm">Live GPS tracking active</span>
         </motion.div>
       </div>
 
       {/* Bottom actions */}
       <div className="p-6">
         <Button 
-          onClick={onStop}
+          onClick={handleStop}
           variant="outline"
           className="w-full"
           size="lg"
