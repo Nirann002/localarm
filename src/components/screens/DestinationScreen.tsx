@@ -1,40 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { MapPin, ArrowLeft, Navigation, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-
-// Fix for default marker icons in Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-});
-
-// Custom user location icon
-const userLocationIcon = L.divIcon({
-  className: "user-location-marker",
-  html: `<div style="width: 20px; height: 20px; background: hsl(175, 45%, 45%); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-});
-
-// Custom destination icon
-const destinationIcon = L.divIcon({
-  className: "destination-marker",
-  html: `<div style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
-    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="hsl(35, 95%, 55%)" stroke="white" stroke-width="1.5">
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-      <circle cx="12" cy="10" r="3" fill="white"/>
-    </svg>
-  </div>`,
-  iconSize: [30, 30],
-  iconAnchor: [15, 30],
-});
 
 interface DestinationScreenProps {
   onBack: () => void;
@@ -51,21 +22,32 @@ const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number
   return null;
 };
 
-// Component to recenter map
-const RecenterMap = ({ lat, lng }: { lat: number; lng: number }) => {
-  const map = useMap();
-  useEffect(() => {
-    map.setView([lat, lng], 15);
-  }, [lat, lng, map]);
-  return null;
-};
-
 const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [radius, setRadius] = useState(300);
   const [isLoading, setIsLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Create icons with useMemo to avoid recreation
+  const userLocationIcon = useMemo(() => L.divIcon({
+    className: "user-location-marker",
+    html: `<div style="width: 20px; height: 20px; background: hsl(175, 45%, 45%); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [20, 20] as [number, number],
+    iconAnchor: [10, 10] as [number, number],
+  }), []);
+
+  const destinationIcon = useMemo(() => L.divIcon({
+    className: "destination-marker",
+    html: `<div style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="hsl(35, 95%, 55%)" stroke="white" stroke-width="1.5">
+        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+        <circle cx="12" cy="10" r="3" fill="white"/>
+      </svg>
+    </div>`,
+    iconSize: [30, 30] as [number, number],
+    iconAnchor: [15, 30] as [number, number],
+  }), []);
 
   // Get user's current location
   useEffect(() => {
