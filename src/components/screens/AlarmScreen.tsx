@@ -8,11 +8,25 @@ interface AlarmScreenProps {
 }
 
 const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const vibrateIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Create and play alarm sound
+    // Request notification permission and show notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('LocAlarm', {
+        body: 'You are approaching your destination!',
+        icon: '/pwa-192x192.png',
+        tag: 'arrival-alarm',
+        requireInteraction: true,
+      });
+    }
+
+    // Create and play alarm sound using Web Audio API
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    audioRef.current = audioContext;
     
     const playAlarm = () => {
       const oscillator = audioContext.createOscillator();
@@ -21,52 +35,83 @@ const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      oscillator.frequency.value = 800;
+      // Louder alarm sound
+      oscillator.frequency.value = 880;
       oscillator.type = 'square';
-      gainNode.gain.value = 0.3;
+      gainNode.gain.value = 0.5;
       
       oscillator.start();
+      oscillatorRef.current = oscillator;
       
-      // Pulsing alarm effect
-      const pulseAlarm = () => {
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.2);
-      };
-      
-      const intervalId = setInterval(pulseAlarm, 400);
-      
-      return { oscillator, intervalId };
+      // Pulsing alarm effect - alternating frequencies
+      let high = true;
+      intervalRef.current = window.setInterval(() => {
+        oscillator.frequency.setValueAtTime(high ? 880 : 660, audioContext.currentTime);
+        high = !high;
+      }, 300);
     };
 
-    const { oscillator, intervalId } = playAlarm();
+    playAlarm();
 
-    // Trigger vibration if supported
+    // Continuous vibration pattern
     if ('vibrate' in navigator) {
       const vibratePattern = () => {
         navigator.vibrate([500, 200, 500, 200, 500]);
       };
       vibratePattern();
-      const vibrateIntervalId = setInterval(vibratePattern, 1600);
-      
-      return () => {
-        oscillator.stop();
-        clearInterval(intervalId);
-        clearInterval(vibrateIntervalId);
-        navigator.vibrate(0);
-        audioContext.close();
-      };
+      vibrateIntervalRef.current = window.setInterval(vibratePattern, 1600);
     }
 
+    // Keep screen awake using Wake Lock API
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.log('Wake Lock not supported');
+      }
+    };
+    requestWakeLock();
+
     return () => {
-      oscillator.stop();
-      clearInterval(intervalId);
-      audioContext.close();
+      if (oscillatorRef.current) {
+        oscillatorRef.current.stop();
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (vibrateIntervalRef.current) {
+        clearInterval(vibrateIntervalRef.current);
+      }
+      if ('vibrate' in navigator) {
+        navigator.vibrate(0);
+      }
+      if (audioRef.current) {
+        audioRef.current.close();
+      }
+      if (wakeLock) {
+        wakeLock.release();
+      }
     };
   }, []);
 
   const handleStop = () => {
     if ('vibrate' in navigator) {
       navigator.vibrate(0);
+    }
+    if (oscillatorRef.current) {
+      oscillatorRef.current.stop();
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    if (vibrateIntervalRef.current) {
+      clearInterval(vibrateIntervalRef.current);
+    }
+    if (audioRef.current) {
+      audioRef.current.close();
     }
     onStop();
   };

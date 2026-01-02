@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Moon, Navigation } from "lucide-react";
+import { MapPin, Moon, Navigation, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TrackingScreenProps {
@@ -34,7 +34,20 @@ const calculateDistance = (
 const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArrival }: TrackingScreenProps) => {
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
   const [isTracking, setIsTracking] = useState(true);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const watchIdRef = useRef<number | null>(null);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(setNotificationPermission);
+      }
+    } else {
+      setNotificationPermission('unsupported');
+    }
+  }, []);
 
   useEffect(() => {
     if (!("geolocation" in navigator)) {
@@ -203,6 +216,18 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
           <Navigation className="w-4 h-4" />
           <span className="text-sm">Live GPS tracking active</span>
         </motion.div>
+
+        {/* Notification permission indicator */}
+        {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+          <motion.div 
+            className="flex items-center gap-2 mt-4 text-amber-500"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <Bell className="w-4 h-4" />
+            <span className="text-sm">Enable notifications for alerts</span>
+          </motion.div>
+        )}
       </div>
 
       {/* Bottom actions */}
