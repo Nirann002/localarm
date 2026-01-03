@@ -1,124 +1,78 @@
 import { motion } from "framer-motion";
-import { Bell, X } from "lucide-react";
+import { Vibrate, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef } from "react";
+import { triggerVibration, stopVibration, type Destination } from "@/lib/locationUtils";
 
 interface AlarmScreenProps {
+  destination: Destination;
   onStop: () => void;
 }
 
-const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
-  const audioRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
-  const intervalRef = useRef<number | null>(null);
+const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
   const vibrateIntervalRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
-    // Request notification permission and show notification
+    // Show notification for lock screen
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('LocAlarm', {
-        body: 'You are approaching your destination!',
-        icon: '/pwa-192x192.png',
-        tag: 'arrival-alarm',
-        requireInteraction: true,
-      });
-    }
-
-    // Create and play alarm sound using Web Audio API
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    audioRef.current = audioContext;
-    
-    const playAlarm = () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      // Louder alarm sound
-      oscillator.frequency.value = 880;
-      oscillator.type = 'square';
-      gainNode.gain.value = 0.5;
-      
-      oscillator.start();
-      oscillatorRef.current = oscillator;
-      
-      // Pulsing alarm effect - alternating frequencies
-      let high = true;
-      intervalRef.current = window.setInterval(() => {
-        oscillator.frequency.setValueAtTime(high ? 880 : 660, audioContext.currentTime);
-        high = !high;
-      }, 300);
-    };
-
-    playAlarm();
-
-    // Continuous vibration pattern
-    if ('vibrate' in navigator) {
-      const vibratePattern = () => {
-        navigator.vibrate([500, 200, 500, 200, 500]);
-      };
-      vibratePattern();
-      vibrateIntervalRef.current = window.setInterval(vibratePattern, 1600);
-    }
-
-    // Keep screen awake using Wake Lock API
-    let wakeLock: any = null;
-    const requestWakeLock = async () => {
       try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await (navigator as any).wakeLock.request('screen');
-        }
+        new Notification("You've arrived!", {
+          body: destination.name.split(",")[0],
+          icon: '/pwa-192x192.png',
+          tag: 'arrival-alarm',
+          requireInteraction: true,
+        });
       } catch (err) {
-        console.log('Wake Lock not supported');
+        console.log('Notification error:', err);
+      }
+    }
+
+    // Start vibration immediately
+    triggerVibration();
+
+    // Keep vibrating in a loop (vibration-only alarm)
+    vibrateIntervalRef.current = window.setInterval(() => {
+      triggerVibration();
+    }, 2500);
+
+    // Keep screen awake
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.log('Wake Lock not supported');
+        }
       }
     };
     requestWakeLock();
 
     return () => {
-      if (oscillatorRef.current) {
-        oscillatorRef.current.stop();
-      }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      stopVibration();
       if (vibrateIntervalRef.current) {
         clearInterval(vibrateIntervalRef.current);
       }
-      if ('vibrate' in navigator) {
-        navigator.vibrate(0);
-      }
-      if (audioRef.current) {
-        audioRef.current.close();
-      }
-      if (wakeLock) {
-        wakeLock.release();
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
       }
     };
-  }, []);
+  }, [destination.name]);
 
   const handleStop = () => {
-    if ('vibrate' in navigator) {
-      navigator.vibrate(0);
-    }
-    if (oscillatorRef.current) {
-      oscillatorRef.current.stop();
-    }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
+    stopVibration();
     if (vibrateIntervalRef.current) {
       clearInterval(vibrateIntervalRef.current);
-    }
-    if (audioRef.current) {
-      audioRef.current.close();
     }
     onStop();
   };
 
+  // Get short name from full destination name
+  const shortName = destination.name.split(",")[0];
+
   return (
     <motion.div 
-      className="h-full flex flex-col bg-alarm p-6 relative overflow-hidden"
+      className="h-full flex flex-col bg-primary p-6 relative overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
@@ -128,7 +82,7 @@ const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
         {[...Array(5)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-64 h-64 rounded-full bg-alarm-foreground/5"
+            className="absolute w-64 h-64 rounded-full bg-primary-foreground/5"
             style={{
               left: `${20 + i * 15}%`,
               top: `${10 + i * 18}%`,
@@ -148,14 +102,14 @@ const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
 
       {/* Content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
-        {/* Alarm icon */}
+        {/* Vibration icon */}
         <motion.div 
           className="mb-8"
           animate={{ rotate: [-10, 10, -10] }}
           transition={{ duration: 0.3, repeat: Infinity }}
         >
-          <div className="w-28 h-28 rounded-full bg-alarm-foreground/20 flex items-center justify-center backdrop-blur-sm">
-            <Bell className="w-14 h-14 text-alarm-foreground animate-alarm-shake" />
+          <div className="w-28 h-28 rounded-full bg-primary-foreground/20 flex items-center justify-center backdrop-blur-sm">
+            <Vibrate className="w-14 h-14 text-primary-foreground" />
           </div>
         </motion.div>
 
@@ -165,23 +119,29 @@ const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
           animate={{ scale: [1, 1.02, 1] }}
           transition={{ duration: 0.8, repeat: Infinity }}
         >
-          <h1 className="text-2xl font-bold text-alarm-foreground mb-3 animate-alarm-pulse">
-            YOU ARE APPROACHING
+          <h1 className="text-2xl font-bold text-primary-foreground mb-4">
+            YOU'VE REACHED
           </h1>
-          <h1 className="text-3xl font-bold text-alarm-foreground animate-alarm-pulse">
-            YOUR DESTINATION
-          </h1>
+          
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <MapPin className="w-6 h-6 text-primary-foreground" />
+            <h2 className="text-3xl font-bold text-primary-foreground">
+              {shortName}
+            </h2>
+          </div>
         </motion.div>
 
-        {/* Wake up message */}
-        <motion.p 
-          className="mt-6 text-lg text-alarm-foreground/80"
+        {/* Full destination name */}
+        <motion.div 
+          className="mt-6 px-6 py-4 bg-primary-foreground/10 rounded-2xl max-w-xs"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          Time to get ready!
-        </motion.p>
+          <p className="text-sm text-primary-foreground/80 text-center line-clamp-3">
+            {destination.name}
+          </p>
+        </motion.div>
       </div>
 
       {/* Action button */}
@@ -193,12 +153,10 @@ const AlarmScreen = ({ onStop }: AlarmScreenProps) => {
         >
           <Button 
             onClick={handleStop}
-            variant="alarm"
-            size="xl"
-            className="w-full bg-alarm-foreground text-alarm hover:bg-alarm-foreground/90"
+            size="lg"
+            className="w-full h-16 text-xl font-bold bg-primary-foreground text-primary hover:bg-primary-foreground/90"
           >
-            <X className="w-6 h-6" />
-            Stop Alarm
+            STOP ALARM
           </Button>
         </motion.div>
       </div>

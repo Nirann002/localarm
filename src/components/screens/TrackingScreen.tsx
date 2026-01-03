@@ -1,43 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Moon, Navigation, Bell } from "lucide-react";
+import { MapPin, Moon, Navigation, Vibrate } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { calculateDistance, type Destination } from "@/lib/locationUtils";
 
 interface TrackingScreenProps {
-  destination: string;
-  radius: number;
-  destinationCoords: { lat: number; lng: number };
+  destination: Destination;
   onStop: () => void;
   onArrival: () => void;
 }
 
-// Calculate distance between two coordinates in meters using Haversine formula
-const calculateDistance = (
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number => {
-  const R = 6371000; // Earth's radius in meters
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArrival }: TrackingScreenProps) => {
+const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps) => {
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
-  const [isTracking, setIsTracking] = useState(true);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const watchIdRef = useRef<number | null>(null);
+  const hasTriggeredRef = useRef(false);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
-  // Request notification permission on mount
+  // Request notification permission and wake lock on mount
   useEffect(() => {
     if ('Notification' in window) {
       setNotificationPermission(Notification.permission);
@@ -47,30 +27,48 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
     } else {
       setNotificationPermission('unsupported');
     }
+
+    // Request wake lock to keep screen on
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.log('Wake Lock not supported');
+        }
+      }
+    };
+    requestWakeLock();
+
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+      }
+    };
   }, []);
 
+  // GPS tracking
   useEffect(() => {
     if (!("geolocation" in navigator)) {
       console.error("Geolocation not supported");
       return;
     }
 
-    // Start continuous GPS tracking
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         const distance = calculateDistance(
           latitude,
           longitude,
-          destinationCoords.lat,
-          destinationCoords.lng
+          destination.lat,
+          destination.lng
         );
         
         setCurrentDistance(Math.round(distance));
 
-        // Check if within radius
-        if (distance <= radius) {
-          setIsTracking(false);
+        // Check if within radius (trigger only once)
+        if (distance <= destination.radius && !hasTriggeredRef.current) {
+          hasTriggeredRef.current = true;
           if (watchIdRef.current !== null) {
             navigator.geolocation.clearWatch(watchIdRef.current);
           }
@@ -82,8 +80,8 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
       },
       {
         enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0,
+        timeout: 30000,
+        maximumAge: 5000,
       }
     );
 
@@ -92,7 +90,7 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
     };
-  }, [destinationCoords, radius, onArrival]);
+  }, [destination, onArrival]);
 
   const handleStop = () => {
     if (watchIdRef.current !== null) {
@@ -108,6 +106,9 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
     }
     return `${distance} m away`;
   };
+
+  // Get short name from full destination name
+  const shortName = destination.name.split(",")[0];
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -127,7 +128,6 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         {/* Pulse animation */}
         <div className="relative mb-8">
-          {/* Outer pulse rings */}
           <motion.div
             className="absolute inset-0 rounded-full bg-accent/20"
             style={{ width: 200, height: 200, top: -50, left: -50 }}
@@ -141,7 +141,6 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
           />
           
-          {/* Center icon */}
           <motion.div 
             className="relative w-24 h-24 rounded-full bg-accent flex items-center justify-center shadow-xl shadow-accent/30"
             animate={{ scale: [1, 1.05, 1] }}
@@ -177,13 +176,26 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <MapPin className="w-6 h-6 text-primary" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm text-muted-foreground mb-1">Destination</p>
-              <p className="text-lg font-semibold text-foreground">{destination}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Alarm at {radius >= 1000 ? "1km" : `${radius}m`} radius
+              <p className="text-lg font-semibold text-foreground truncate">{shortName}</p>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                {destination.name}
               </p>
             </div>
+          </div>
+        </motion.div>
+
+        {/* Alert info */}
+        <motion.div 
+          className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+        >
+          <div className="flex items-center gap-3">
+            <Vibrate className="w-5 h-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Vibration alert at {destination.radius}m radius</span>
           </div>
         </motion.div>
 
@@ -214,20 +226,8 @@ const TrackingScreen = ({ destination, radius, destinationCoords, onStop, onArri
           transition={{ duration: 2, repeat: Infinity }}
         >
           <Navigation className="w-4 h-4" />
-          <span className="text-sm">Live GPS tracking active</span>
+          <span className="text-sm">GPS tracking active • Works offline</span>
         </motion.div>
-
-        {/* Notification permission indicator */}
-        {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-          <motion.div 
-            className="flex items-center gap-2 mt-4 text-amber-500"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <Bell className="w-4 h-4" />
-            <span className="text-sm">Enable notifications for alerts</span>
-          </motion.div>
-        )}
       </div>
 
       {/* Bottom actions */}
