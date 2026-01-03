@@ -1,17 +1,60 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MobileFrame from "@/components/MobileFrame";
 import WelcomeScreen from "@/components/screens/WelcomeScreen";
 import DestinationScreen from "@/components/screens/DestinationScreen";
 import TrackingScreen from "@/components/screens/TrackingScreen";
 import AlarmScreen from "@/components/screens/AlarmScreen";
+import {
+  cacheDestination,
+  getCachedDestination,
+  clearCachedDestination,
+  type Destination,
+} from "@/lib/locationUtils";
 
 type Screen = "welcome" | "destination" | "tracking" | "alarm";
 
 const Index = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-  const [destination, setDestination] = useState("");
-  const [radius, setRadius] = useState(300);
-  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destination, setDestination] = useState<Destination | null>(null);
+
+  // Check for cached destination on mount (for offline resume)
+  useEffect(() => {
+    const cached = getCachedDestination();
+    if (cached) {
+      setDestination(cached);
+      // Resume tracking if there's a cached destination
+      setCurrentScreen("tracking");
+    }
+  }, []);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const handleConfirmDestination = (dest: Destination) => {
+    setDestination(dest);
+    cacheDestination(dest);
+    setCurrentScreen("tracking");
+  };
+
+  const handleArrival = () => {
+    setCurrentScreen("alarm");
+  };
+
+  const handleStopAlarm = () => {
+    clearCachedDestination();
+    setDestination(null);
+    setCurrentScreen("welcome");
+  };
+
+  const handleStopTracking = () => {
+    clearCachedDestination();
+    setDestination(null);
+    setCurrentScreen("welcome");
+  };
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -25,30 +68,24 @@ const Index = () => {
         return (
           <DestinationScreen
             onBack={() => setCurrentScreen("welcome")}
-            onConfirm={(dest, r, coords) => {
-              setDestination(dest);
-              setRadius(r);
-              setDestinationCoords(coords);
-              setCurrentScreen("tracking");
-            }}
+            onConfirm={handleConfirmDestination}
           />
         );
       case "tracking":
-        return (
+        return destination ? (
           <TrackingScreen
             destination={destination}
-            radius={radius}
-            destinationCoords={destinationCoords!}
-            onStop={() => setCurrentScreen("welcome")}
-            onArrival={() => setCurrentScreen("alarm")}
+            onStop={handleStopTracking}
+            onArrival={handleArrival}
           />
-        );
+        ) : null;
       case "alarm":
-        return (
+        return destination ? (
           <AlarmScreen
-            onStop={() => setCurrentScreen("welcome")}
+            destination={destination}
+            onStop={handleStopAlarm}
           />
-        );
+        ) : null;
     }
   };
 

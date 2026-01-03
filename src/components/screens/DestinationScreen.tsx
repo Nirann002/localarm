@@ -1,27 +1,44 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { MapPin, ArrowLeft, Navigation, Loader2 } from "lucide-react";
+import { MapPin, ArrowLeft, Navigation, Loader2, Search, X, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import {
+  searchPlaces,
+  reverseGeocode,
+  isOnline,
+  type SearchResult,
+  type Destination,
+} from "@/lib/locationUtils";
 
 interface DestinationScreenProps {
   onBack: () => void;
-  onConfirm: (destination: string, radius: number, coords: { lat: number; lng: number }) => void;
+  onConfirm: (destination: Destination) => void;
 }
 
 const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destinationName, setDestinationName] = useState<string>("");
   const [radius, setRadius] = useState(300);
   const [isLoading, setIsLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
   const userMarkerRef = useRef<any>(null);
   const destMarkerRef = useRef<any>(null);
   const radiusCircleRef = useRef<any>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get user's current location
   useEffect(() => {
@@ -37,14 +54,14 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         (error) => {
           console.error("Geolocation error:", error);
           setLocationError("Could not get your location. Please enable location services.");
-          setUserLocation({ lat: 51.505, lng: -0.09 });
+          setUserLocation({ lat: 13.0827, lng: 80.2707 }); // Default to Chennai
           setIsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
       );
     } else {
       setLocationError("Geolocation is not supported by your browser.");
-      setUserLocation({ lat: 51.505, lng: -0.09 });
+      setUserLocation({ lat: 13.0827, lng: 80.2707 });
       setIsLoading(false);
     }
   }, []);
@@ -57,19 +74,16 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
       const L = (await import("leaflet")).default;
       await import("leaflet/dist/leaflet.css");
 
-      // Create map
       const map = L.map(mapRef.current!, {
         center: [userLocation.lat, userLocation.lng],
         zoom: 15,
         zoomControl: true,
       });
 
-      // Add tile layer
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
 
-      // Create user location marker
       const userIcon = L.divIcon({
         className: "user-location-marker",
         html: `<div style="width: 20px; height: 20px; background: hsl(175, 45%, 45%); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
@@ -79,10 +93,20 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
 
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon }).addTo(map);
 
-      // Handle map clicks
-      map.on("click", (e: any) => {
+      map.on("click", async (e: any) => {
         const { lat, lng } = e.latlng;
         setDestinationCoords({ lat, lng });
+        setSearchQuery("");
+        setShowResults(false);
+
+        // Reverse geocode to get place name
+        if (isOnline()) {
+          setDestinationName("Loading...");
+          const name = await reverseGeocode(lat, lng);
+          setDestinationName(name);
+        } else {
+          setDestinationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }
       });
 
       leafletMapRef.current = map;
@@ -106,20 +130,17 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
     const updateMarkers = async () => {
       const L = (await import("leaflet")).default;
 
-      // Remove existing destination marker
       if (destMarkerRef.current) {
         destMarkerRef.current.remove();
         destMarkerRef.current = null;
       }
 
-      // Remove existing radius circle
       if (radiusCircleRef.current) {
         radiusCircleRef.current.remove();
         radiusCircleRef.current = null;
       }
 
       if (destinationCoords) {
-        // Create destination marker
         const destIcon = L.divIcon({
           className: "destination-marker",
           html: `<div style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
@@ -134,7 +155,6 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
 
         destMarkerRef.current = L.marker([destinationCoords.lat, destinationCoords.lng], { icon: destIcon }).addTo(leafletMapRef.current);
 
-        // Create radius circle
         radiusCircleRef.current = L.circle([destinationCoords.lat, destinationCoords.lng], {
           radius: radius,
           color: "hsl(35, 95%, 55%)",
@@ -148,9 +168,69 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
     updateMarkers();
   }, [destinationCoords, radius, mapReady]);
 
+  // Search with debounce
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!searchQuery || searchQuery.length < 3) {
+      setSearchResults([]);
+      setShowResults(false);
+      setSearchError(null);
+      return;
+    }
+
+    if (!isOnline()) {
+      setSearchError("Search needs internet, but alarm will still work.");
+      setSearchResults([]);
+      setShowResults(true);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError(null);
+      try {
+        const results = await searchPlaces(searchQuery);
+        setSearchResults(results);
+        setShowResults(true);
+      } catch {
+        setSearchError("Search needs internet, but alarm will still work.");
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  const handleSelectPlace = useCallback((result: SearchResult) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setDestinationCoords({ lat, lng });
+    setDestinationName(result.display_name);
+    setSearchQuery(result.display_name.split(",")[0]);
+    setShowResults(false);
+
+    if (leafletMapRef.current) {
+      leafletMapRef.current.setView([lat, lng], 16);
+    }
+  }, []);
+
   const handleConfirm = () => {
-    if (destinationCoords) {
-      onConfirm("Selected Destination", radius, destinationCoords);
+    if (destinationCoords && destinationName) {
+      onConfirm({
+        name: destinationName,
+        lat: destinationCoords.lat,
+        lng: destinationCoords.lng,
+        radius,
+      });
     }
   };
 
@@ -180,18 +260,69 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      {/* Header */}
-      <div className="px-4 py-3 flex items-center gap-3 border-b border-border bg-card z-10">
-        <button 
-          onClick={onBack}
-          className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-foreground" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold text-foreground">Select Destination</h1>
-          <p className="text-xs text-muted-foreground">Tap on the map to set your destination</p>
+      {/* Search Header */}
+      <div className="px-3 py-3 border-b border-border bg-card z-20 relative">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5 text-foreground" />
+          </button>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search destination..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-10 bg-muted border-border"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setShowResults(false);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            )}
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />
+            )}
+          </div>
         </div>
+
+        {/* Search Results Dropdown */}
+        {showResults && (
+          <div className="absolute left-3 right-3 top-full mt-1 bg-card rounded-lg border border-border shadow-lg max-h-64 overflow-y-auto z-30">
+            {searchError ? (
+              <div className="flex items-center gap-2 p-4 text-muted-foreground">
+                <WifiOff className="w-4 h-4" />
+                <span className="text-sm">{searchError}</span>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-muted-foreground text-sm text-center">
+                No results found
+              </div>
+            ) : (
+              searchResults.map((result) => (
+                <button
+                  key={result.place_id}
+                  onClick={() => handleSelectPlace(result)}
+                  className="w-full flex items-start gap-3 p-3 hover:bg-muted transition-colors text-left border-b border-border/50 last:border-0"
+                >
+                  <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-sm text-foreground line-clamp-2">
+                    {result.display_name}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Location error banner */}
@@ -221,21 +352,21 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
       >
-        {destinationCoords ? (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+        {destinationCoords && destinationName ? (
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
               <MapPin className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Destination selected</p>
-              <p className="text-sm font-medium text-foreground">
-                {destinationCoords.lat.toFixed(5)}, {destinationCoords.lng.toFixed(5)}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Destination</p>
+              <p className="text-sm font-medium text-foreground line-clamp-2">
+                {destinationName}
               </p>
             </div>
           </div>
         ) : (
           <div className="text-center py-2">
-            <p className="text-muted-foreground">Tap on the map to select destination</p>
+            <p className="text-muted-foreground">Search or tap on the map to select destination</p>
           </div>
         )}
 
@@ -263,7 +394,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
           onClick={handleConfirm}
           className="w-full"
           size="lg"
-          disabled={!destinationCoords}
+          disabled={!destinationCoords || !destinationName}
         >
           Start Tracking
         </Button>
