@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Moon, Navigation, Vibrate } from "lucide-react";
+import { MapPin, Moon, Navigation, Vibrate, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { calculateDistance, type Destination } from "@/lib/locationUtils";
+import { calculateDistance, calculateETA, type Destination } from "@/lib/locationUtils";
 
 interface TrackingScreenProps {
   destination: Destination;
@@ -12,6 +12,7 @@ interface TrackingScreenProps {
 
 const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps) => {
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
+  const [eta, setEta] = useState<string>("Calculating...");
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const watchIdRef = useRef<number | null>(null);
   const hasTriggeredRef = useRef(false);
@@ -56,7 +57,7 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, speed } = position.coords;
         const distance = calculateDistance(
           latitude,
           longitude,
@@ -65,6 +66,11 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
         );
         
         setCurrentDistance(Math.round(distance));
+        
+        // Calculate ETA - use GPS speed if available, otherwise default
+        const speedKmh = speed && speed > 0 ? (speed * 3.6) : 30; // Convert m/s to km/h
+        const etaResult = calculateETA(distance, speedKmh);
+        setEta(etaResult.text);
 
         // Check if within radius (trigger only once)
         if (distance <= destination.radius && !hasTriggeredRef.current) {
@@ -113,7 +119,7 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border">
+      <div className="px-6 py-4 border-b border-border safe-area-top">
         <div className="flex items-center gap-3">
           <motion.div 
             className="w-3 h-3 rounded-full bg-accent"
@@ -186,16 +192,39 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
           </div>
         </motion.div>
 
-        {/* Alert info */}
+        {/* ETA card */}
         <motion.div 
           className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45 }}
         >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-primary" />
+              <span className="text-sm text-muted-foreground">Estimated arrival</span>
+            </div>
+            <motion.span 
+              className="text-lg font-bold text-primary"
+              key={eta}
+              initial={{ scale: 1.1 }}
+              animate={{ scale: 1 }}
+            >
+              {eta}
+            </motion.span>
+          </div>
+        </motion.div>
+
+        {/* Alert info */}
+        <motion.div 
+          className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
           <div className="flex items-center gap-3">
             <Vibrate className="w-5 h-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Vibration alert at {destination.radius}m radius</span>
+            <span className="text-sm text-muted-foreground">Alarm at {destination.radius}m radius</span>
           </div>
         </motion.div>
 
@@ -204,7 +233,7 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
           className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.55 }}
         >
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Current distance</span>
@@ -231,7 +260,7 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
       </div>
 
       {/* Bottom actions */}
-      <div className="p-6">
+      <div className="p-6 safe-area-bottom">
         <Button 
           onClick={handleStop}
           variant="outline"

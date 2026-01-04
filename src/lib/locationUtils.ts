@@ -119,3 +119,95 @@ export function stopVibration(): void {
 export function isOnline(): boolean {
   return navigator.onLine;
 }
+
+// Calculate ETA based on distance and average speed
+// Assuming average commuting speed (bus/train) of ~30 km/h in urban areas
+export function calculateETA(distanceMeters: number, speedKmh: number = 30): { minutes: number; text: string } {
+  const distanceKm = distanceMeters / 1000;
+  const hoursToArrive = distanceKm / speedKmh;
+  const minutesToArrive = Math.ceil(hoursToArrive * 60);
+  
+  if (minutesToArrive < 1) {
+    return { minutes: 0, text: "Less than a minute" };
+  } else if (minutesToArrive === 1) {
+    return { minutes: 1, text: "~1 minute" };
+  } else if (minutesToArrive < 60) {
+    return { minutes: minutesToArrive, text: `~${minutesToArrive} minutes` };
+  } else {
+    const hours = Math.floor(minutesToArrive / 60);
+    const mins = minutesToArrive % 60;
+    if (mins === 0) {
+      return { minutes: minutesToArrive, text: `~${hours} hour${hours > 1 ? 's' : ''}` };
+    }
+    return { minutes: minutesToArrive, text: `~${hours}h ${mins}m` };
+  }
+}
+
+// Audio alarm using Web Audio API - plays a loud alarm tone
+let audioContext: AudioContext | null = null;
+let oscillator: OscillatorNode | null = null;
+let gainNode: GainNode | null = null;
+let isPlaying = false;
+
+export function playAlarmSound(): void {
+  if (isPlaying) return;
+  
+  try {
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Create oscillator for alarm tone
+    oscillator = audioContext.createOscillator();
+    gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Alarm frequency pattern - alternating between two tones
+    oscillator.frequency.value = 800;
+    oscillator.type = 'square';
+    
+    // Maximum volume
+    gainNode.gain.value = 1.0;
+    
+    oscillator.start();
+    isPlaying = true;
+    
+    // Create pulsing effect by modulating frequency
+    let highFreq = true;
+    const pulseInterval = setInterval(() => {
+      if (oscillator && isPlaying) {
+        oscillator.frequency.value = highFreq ? 600 : 900;
+        highFreq = !highFreq;
+      } else {
+        clearInterval(pulseInterval);
+      }
+    }, 500);
+    
+  } catch (err) {
+    console.error('Audio playback error:', err);
+  }
+}
+
+export function stopAlarmSound(): void {
+  isPlaying = false;
+  
+  if (oscillator) {
+    try {
+      oscillator.stop();
+      oscillator.disconnect();
+    } catch (e) {
+      // Ignore errors if already stopped
+    }
+    oscillator = null;
+  }
+  
+  if (gainNode) {
+    gainNode.disconnect();
+    gainNode = null;
+  }
+  
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
+}
