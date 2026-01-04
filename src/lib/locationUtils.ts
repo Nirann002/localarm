@@ -54,10 +54,11 @@ export function clearCachedDestination(): void {
 }
 
 // Reverse geocode coordinates to place name using Nominatim
+// Using zoom=16 for neighborhood-level accuracy (higher = more specific)
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
       {
         headers: {
           'Accept-Language': 'en',
@@ -66,6 +67,37 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     );
     if (!response.ok) throw new Error('Geocoding failed');
     const data = await response.json();
+    
+    // Build a more accurate display name from address components
+    const addr = data.address;
+    if (addr) {
+      const parts: string[] = [];
+      
+      // Prioritize specific location name
+      if (data.name && data.name !== addr.road) {
+        parts.push(data.name);
+      }
+      
+      // Add road/street
+      if (addr.road) parts.push(addr.road);
+      
+      // Add neighborhood/suburb - be more specific
+      if (addr.neighbourhood) parts.push(addr.neighbourhood);
+      else if (addr.suburb) parts.push(addr.suburb);
+      
+      // Add city
+      if (addr.city) parts.push(addr.city);
+      else if (addr.town) parts.push(addr.town);
+      else if (addr.village) parts.push(addr.village);
+      
+      // Add state
+      if (addr.state) parts.push(addr.state);
+      
+      if (parts.length > 0) {
+        return parts.join(', ');
+      }
+    }
+    
     return data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   } catch {
     return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
