@@ -1,14 +1,26 @@
 import { motion } from "framer-motion";
 import { MapPin, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { impactHaptic } from "@/lib/locationUtils";
 
 interface WelcomeScreenProps {
   onSetDestination: () => void;
 }
 
 const WelcomeScreen = ({ onSetDestination }: WelcomeScreenProps) => {
+  const handleSetDestination = () => {
+    impactHaptic();
+    onSetDestination();
+  };
+
   return (
-    <div className="h-full flex flex-col bg-background px-6 py-8 relative">
+    <div 
+      className="h-full flex flex-col bg-background px-6 py-8 relative"
+      style={{ 
+        paddingTop: 'calc(env(safe-area-inset-top) + 2rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 2rem)'
+      }}
+    >
       {/* Logo and branding */}
       <motion.div 
         className="flex-1 flex flex-col items-center justify-center"
@@ -42,7 +54,7 @@ const WelcomeScreen = ({ onSetDestination }: WelcomeScreenProps) => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          Localarm
+          LocAlarm
         </motion.h1>
 
         {/* Tagline */}
@@ -73,8 +85,8 @@ const WelcomeScreen = ({ onSetDestination }: WelcomeScreenProps) => {
         transition={{ delay: 0.6 }}
       >
         <Button 
-          onClick={onSetDestination} 
-          className="w-full"
+          onClick={handleSetDestination} 
+          className="w-full h-14 text-lg"
           size="lg"
         >
           <MapPin className="w-5 h-5" />

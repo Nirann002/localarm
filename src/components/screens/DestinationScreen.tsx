@@ -8,6 +8,8 @@ import {
   searchPlaces,
   reverseGeocode,
   isOnline,
+  getCachedLocation,
+  impactHaptic,
   type SearchResult,
   type Destination,
 } from "@/lib/locationUtils";
@@ -53,20 +55,27 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         },
         (error) => {
           console.error("Geolocation error:", error);
-          setLocationError("Could not get your location. Please enable location services.");
-          setUserLocation({ lat: 13.0827, lng: 80.2707 }); // Default to Chennai
+          // Try cached location first
+          const cached = getCachedLocation();
+          if (cached) {
+            setUserLocation(cached);
+            setLocationError("Using last known location");
+          } else {
+            setLocationError("Could not get your location. Please enable location services.");
+            setUserLocation({ lat: 13.0827, lng: 80.2707 }); // Default to Chennai
+          }
           setIsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
       );
     } else {
-      setLocationError("Geolocation is not supported by your browser.");
+      setLocationError("Geolocation is not supported.");
       setUserLocation({ lat: 13.0827, lng: 80.2707 });
       setIsLoading(false);
     }
   }, []);
 
-  // Initialize Leaflet map imperatively
+  // Initialize Leaflet map
   useEffect(() => {
     if (!userLocation || !mapRef.current || leafletMapRef.current) return;
 
@@ -81,7 +90,8 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
       });
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        attribution: '© OpenStreetMap',
+        maxZoom: 19,
       }).addTo(map);
 
       const userIcon = L.divIcon({
@@ -98,8 +108,8 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         setDestinationCoords({ lat, lng });
         setSearchQuery("");
         setShowResults(false);
+        impactHaptic();
 
-        // Reverse geocode to get place name
         if (isOnline()) {
           setDestinationName("Loading...");
           const name = await reverseGeocode(lat, lng);
@@ -217,6 +227,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
     setDestinationName(result.display_name);
     setSearchQuery(result.display_name.split(",")[0]);
     setShowResults(false);
+    impactHaptic();
 
     if (leafletMapRef.current) {
       leafletMapRef.current.setView([lat, lng], 16);
@@ -225,6 +236,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
 
   const handleConfirm = () => {
     if (destinationCoords && destinationName) {
+      impactHaptic();
       onConfirm({
         name: destinationName,
         lat: destinationCoords.lat,
@@ -261,11 +273,14 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Search Header */}
-      <div className="px-3 py-3 border-b border-border bg-card z-20 relative">
+      <div 
+        className="px-3 py-3 border-b border-border bg-card z-20 relative"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+      >
         <div className="flex items-center gap-2">
           <button 
             onClick={onBack}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted transition-colors shrink-0"
+            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted transition-colors shrink-0 active:scale-95"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
@@ -276,7 +291,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
               placeholder="Search destination..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-10 bg-muted border-border"
+              className="pl-10 pr-10 bg-muted border-border h-11"
             />
             {searchQuery && (
               <button
@@ -312,7 +327,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
                 <button
                   key={result.place_id}
                   onClick={() => handleSelectPlace(result)}
-                  className="w-full flex items-start gap-3 p-3 hover:bg-muted transition-colors text-left border-b border-border/50 last:border-0"
+                  className="w-full flex items-start gap-3 p-3 hover:bg-muted active:bg-muted transition-colors text-left border-b border-border/50 last:border-0"
                 >
                   <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <span className="text-sm text-foreground line-clamp-2">
@@ -339,7 +354,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         {/* Center on user button */}
         <button
           onClick={centerOnUser}
-          className="absolute bottom-32 right-4 z-[1000] w-12 h-12 rounded-full bg-card shadow-lg flex items-center justify-center border border-border hover:bg-muted transition-colors"
+          className="absolute bottom-32 right-4 z-[1000] w-12 h-12 rounded-full bg-card shadow-lg flex items-center justify-center border border-border hover:bg-muted active:scale-95 transition-all"
         >
           <Navigation className="w-5 h-5 text-accent" />
         </button>
@@ -348,6 +363,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
       {/* Bottom panel */}
       <motion.div 
         className="p-4 bg-card border-t border-border space-y-4"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
@@ -392,7 +408,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
         
         <Button 
           onClick={handleConfirm}
-          className="w-full"
+          className="w-full h-12"
           size="lg"
           disabled={!destinationCoords || !destinationName}
         >

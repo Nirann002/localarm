@@ -7,26 +7,48 @@
     <meta name="description" content="Never miss your stop! Get alerted when you approach your destination." />
     <meta name="author" content="LocAlarm" />
     <meta name="theme-color" content="#0f172a" />
+    <meta name="background-color" content="#0f172a" />
+    
+    <!-- PWA / Native App Meta -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="LocAlarm" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-TileColor" content="#0f172a" />
+    <meta name="msapplication-tap-highlight" content="no" />
 
+    <!-- Open Graph -->
     <meta property="og:title" content="LocAlarm - Location Alarm" />
     <meta property="og:description" content="Never miss your stop! Get alerted when you approach your destination." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="/pwa-512x512.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@LocAlarm" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:title" content="LocAlarm - Location Alarm" />
+    <meta name="twitter:description" content="Never miss your stop! Get alerted when you approach your destination." />
 
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/pwa-192x192.png" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="mask-icon" href="/pwa-512x512.png" color="#0f172a" />
     <link rel="manifest" href="/manifest.webmanifest" />
     
     <style>
       /* Fullscreen native app styling */
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      
+      input, textarea {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      
       html, body {
         height: 100%;
         width: 100%;
@@ -34,10 +56,23 @@
         padding: 0;
         overflow: hidden;
         background-color: #0f172a;
+        overscroll-behavior: none;
+        touch-action: manipulation;
       }
+      
       #root {
         height: 100%;
         width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+      
+      /* Prevent pull-to-refresh */
+      body {
+        overscroll-behavior-y: contain;
       }
     </style>
   </head>

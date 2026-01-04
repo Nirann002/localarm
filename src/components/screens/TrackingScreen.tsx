@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Moon, Navigation, Vibrate, Clock } from "lucide-react";
+import { MapPin, Moon, Navigation, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { calculateDistance, calculateETA, type Destination } from "@/lib/locationUtils";
+import { 
+  calculateDistance, 
+  calculateETA, 
+  cacheLocation,
+  type Destination 
+} from "@/lib/locationUtils";
 
 interface TrackingScreenProps {
   destination: Destination;
@@ -13,20 +18,14 @@ interface TrackingScreenProps {
 const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps) => {
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
   const [eta, setEta] = useState<string>("Calculating...");
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const watchIdRef = useRef<number | null>(null);
   const hasTriggeredRef = useRef(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
-  // Request notification permission and wake lock on mount
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(setNotificationPermission);
-      }
-    } else {
-      setNotificationPermission('unsupported');
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
     }
 
     // Request wake lock to keep screen on
@@ -34,7 +33,7 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
       if ('wakeLock' in navigator) {
         try {
           wakeLockRef.current = await navigator.wakeLock.request('screen');
-        } catch (err) {
+        } catch {
           console.log('Wake Lock not supported');
         }
       }
@@ -58,6 +57,10 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, speed } = position.coords;
+        
+        // Cache location for offline use
+        cacheLocation(latitude, longitude);
+        
         const distance = calculateDistance(
           latitude,
           longitude,
@@ -67,8 +70,8 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
         
         setCurrentDistance(Math.round(distance));
         
-        // Calculate ETA - use GPS speed if available, otherwise default
-        const speedKmh = speed && speed > 0 ? (speed * 3.6) : 30; // Convert m/s to km/h
+        // Calculate ETA using GPS speed if available
+        const speedKmh = speed && speed > 0 ? (speed * 3.6) : 30;
         const etaResult = calculateETA(distance, speedKmh);
         setEta(etaResult.text);
 
@@ -113,13 +116,15 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
     return `${distance} m away`;
   };
 
-  // Get short name from full destination name
   const shortName = destination.name.split(",")[0];
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div 
+      className="h-full flex flex-col bg-background"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border safe-area-top">
+      <div className="px-6 py-4 border-b border-border">
         <div className="flex items-center gap-3">
           <motion.div 
             className="w-3 h-3 rounded-full bg-accent"
@@ -215,25 +220,12 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
           </div>
         </motion.div>
 
-        {/* Alert info */}
+        {/* Live distance */}
         <motion.div 
           className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-        >
-          <div className="flex items-center gap-3">
-            <Vibrate className="w-5 h-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Alarm at {destination.radius}m radius</span>
-          </div>
-        </motion.div>
-
-        {/* Live distance indicator */}
-        <motion.div 
-          className="w-full bg-card rounded-2xl p-4 border border-border mt-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55 }}
         >
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Current distance</span>
@@ -248,7 +240,19 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
           </div>
         </motion.div>
 
-        {/* Tracking indicator */}
+        {/* Alert radius info */}
+        <motion.div 
+          className="w-full bg-muted/50 rounded-xl p-3 border border-border mt-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+        >
+          <p className="text-sm text-muted-foreground text-center">
+            Alarm at {destination.radius}m radius
+          </p>
+        </motion.div>
+
+        {/* GPS indicator */}
         <motion.div 
           className="flex items-center gap-2 mt-6 text-muted-foreground"
           animate={{ opacity: [0.5, 1, 0.5] }}
@@ -260,7 +264,10 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
       </div>
 
       {/* Bottom actions */}
-      <div className="p-6 safe-area-bottom">
+      <div 
+        className="p-6"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+      >
         <Button 
           onClick={handleStop}
           variant="outline"

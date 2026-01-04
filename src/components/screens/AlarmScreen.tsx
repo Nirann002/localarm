@@ -3,10 +3,11 @@ import { Bell, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef } from "react";
 import { 
-  triggerVibration, 
-  stopVibration, 
+  startVibrationAlarm, 
+  stopVibrationAlarm, 
   playAlarmSound, 
-  stopAlarmSound, 
+  stopAlarmSound,
+  notificationHaptic,
   type Destination 
 } from "@/lib/locationUtils";
 
@@ -16,10 +17,12 @@ interface AlarmScreenProps {
 }
 
 const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
-  const vibrateIntervalRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
+    // Trigger notification haptic for arrival
+    notificationHaptic();
+    
     // Show notification for lock screen
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
@@ -34,16 +37,11 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
       }
     }
 
-    // Start alarm sound immediately
+    // Start alarm sound
     playAlarmSound();
 
-    // Start vibration immediately
-    triggerVibration();
-
-    // Keep vibrating in a loop (vibration-only alarm)
-    vibrateIntervalRef.current = window.setInterval(() => {
-      triggerVibration();
-    }, 2500);
+    // Start vibration alarm (continuous)
+    startVibrationAlarm();
 
     // Keep screen awake
     const requestWakeLock = async () => {
@@ -58,11 +56,8 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
     requestWakeLock();
 
     return () => {
-      stopVibration();
+      stopVibrationAlarm();
       stopAlarmSound();
-      if (vibrateIntervalRef.current) {
-        clearInterval(vibrateIntervalRef.current);
-      }
       if (wakeLockRef.current) {
         wakeLockRef.current.release();
       }
@@ -70,25 +65,22 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
   }, [destination.name]);
 
   const handleStop = () => {
-    stopVibration();
+    stopVibrationAlarm();
     stopAlarmSound();
-    if (vibrateIntervalRef.current) {
-      clearInterval(vibrateIntervalRef.current);
-    }
     onStop();
   };
 
-  // Get short name from full destination name
   const shortName = destination.name.split(",")[0];
 
   return (
     <motion.div 
-      className="h-full flex flex-col bg-primary p-6 relative overflow-hidden safe-area-inset"
+      className="h-full flex flex-col bg-primary p-6 relative overflow-hidden"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
     >
-      {/* Animated background elements */}
+      {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(5)].map((_, i) => (
           <motion.div
@@ -113,7 +105,6 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
 
       {/* Content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
-        {/* Bell icon with shake */}
         <motion.div 
           className="mb-8"
           animate={{ rotate: [-15, 15, -15] }}
@@ -124,7 +115,6 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
           </div>
         </motion.div>
 
-        {/* Alert text */}
         <motion.div 
           className="text-center"
           animate={{ scale: [1, 1.02, 1] }}
@@ -142,7 +132,6 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
           </div>
         </motion.div>
 
-        {/* Full destination name */}
         <motion.div 
           className="mt-6 px-6 py-4 bg-primary-foreground/10 rounded-2xl max-w-xs"
           initial={{ opacity: 0 }}
@@ -156,7 +145,7 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
       </div>
 
       {/* Action button */}
-      <div className="relative z-10 safe-area-bottom">
+      <div className="relative z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
