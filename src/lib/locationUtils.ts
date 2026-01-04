@@ -1,3 +1,5 @@
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+
 // Haversine formula to calculate distance between two coordinates in meters
 export function calculateDistance(
   lat1: number,
@@ -29,6 +31,7 @@ export interface Destination {
 
 // Local storage keys
 const DESTINATION_KEY = 'localarm_destination';
+const LOCATION_KEY = 'localarm_last_location';
 
 // Cache destination to localStorage for offline use
 export function cacheDestination(destination: Destination): void {
@@ -53,8 +56,29 @@ export function clearCachedDestination(): void {
   localStorage.removeItem(DESTINATION_KEY);
 }
 
+// Cache last known location for offline use
+export function cacheLocation(lat: number, lng: number): void {
+  localStorage.setItem(LOCATION_KEY, JSON.stringify({ lat, lng, timestamp: Date.now() }));
+}
+
+// Get last known location
+export function getCachedLocation(): { lat: number; lng: number } | null {
+  const cached = localStorage.getItem(LOCATION_KEY);
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      // Only use if less than 1 hour old
+      if (Date.now() - data.timestamp < 3600000) {
+        return { lat: data.lat, lng: data.lng };
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 // Reverse geocode coordinates to place name using Nominatim
-// Using zoom=16 for neighborhood-level accuracy (higher = more specific)
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const response = await fetch(
@@ -68,29 +92,23 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     if (!response.ok) throw new Error('Geocoding failed');
     const data = await response.json();
     
-    // Build a more accurate display name from address components
     const addr = data.address;
     if (addr) {
       const parts: string[] = [];
       
-      // Prioritize specific location name
       if (data.name && data.name !== addr.road) {
         parts.push(data.name);
       }
       
-      // Add road/street
       if (addr.road) parts.push(addr.road);
       
-      // Add neighborhood/suburb - be more specific
       if (addr.neighbourhood) parts.push(addr.neighbourhood);
       else if (addr.suburb) parts.push(addr.suburb);
       
-      // Add city
       if (addr.city) parts.push(addr.city);
       else if (addr.town) parts.push(addr.town);
       else if (addr.village) parts.push(addr.village);
       
-      // Add state
       if (addr.state) parts.push(addr.state);
       
       if (parts.length > 0) {
@@ -131,19 +149,67 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
   }
 }
 
-// Trigger strong repeating vibration pattern
-export function triggerVibration(): void {
-  if ('vibrate' in navigator) {
-    // Strong repeating vibration pattern: vibrate 500ms, pause 200ms, repeat
-    const pattern = [500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 500];
-    navigator.vibrate(pattern);
+// Vibration interval reference
+let vibrationInterval: number | null = null;
+
+// Trigger haptic vibration using Capacitor Haptics (native) with web fallback
+export async function triggerVibration(): Promise<void> {
+  try {
+    // Try Capacitor Haptics first (works on native)
+    await Haptics.vibrate({ duration: 1000 });
+  } catch {
+    // Fallback to web vibration API
+    if ('vibrate' in navigator) {
+      navigator.vibrate([500, 200, 500, 200, 500, 200, 500, 200, 500]);
+    }
   }
 }
 
-// Stop vibration
-export function stopVibration(): void {
+// Start continuous vibration alarm
+export function startVibrationAlarm(): void {
+  if (vibrationInterval) return;
+  
+  // Trigger immediately
+  triggerVibration();
+  
+  // Keep vibrating every 2 seconds
+  vibrationInterval = window.setInterval(() => {
+    triggerVibration();
+  }, 2000);
+}
+
+// Stop vibration alarm
+export function stopVibrationAlarm(): void {
+  if (vibrationInterval) {
+    clearInterval(vibrationInterval);
+    vibrationInterval = null;
+  }
+  
+  // Stop any ongoing vibration
   if ('vibrate' in navigator) {
     navigator.vibrate(0);
+  }
+}
+
+// Single impact haptic for UI feedback
+export async function impactHaptic(): Promise<void> {
+  try {
+    await Haptics.impact({ style: ImpactStyle.Medium });
+  } catch {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+  }
+}
+
+// Notification haptic for arrival
+export async function notificationHaptic(): Promise<void> {
+  try {
+    await Haptics.notification({ type: NotificationType.Warning });
+  } catch {
+    if ('vibrate' in navigator) {
+      navigator.vibrate([100, 50, 100]);
+    }
   }
 }
 
@@ -153,7 +219,6 @@ export function isOnline(): boolean {
 }
 
 // Calculate ETA based on distance and average speed
-// Assuming average commuting speed (bus/train) of ~30 km/h in urban areas
 export function calculateETA(distanceMeters: number, speedKmh: number = 30): { minutes: number; text: string } {
   const distanceKm = distanceMeters / 1000;
   const hoursToArrive = distanceKm / speedKmh;
@@ -175,11 +240,12 @@ export function calculateETA(distanceMeters: number, speedKmh: number = 30): { m
   }
 }
 
-// Audio alarm using Web Audio API - plays a loud alarm tone
+// Audio alarm using Web Audio API
 let audioContext: AudioContext | null = null;
 let oscillator: OscillatorNode | null = null;
 let gainNode: GainNode | null = null;
 let isPlaying = false;
+let pulseInterval: number | null = null;
 
 export function playAlarmSound(): void {
   if (isPlaying) return;
@@ -187,31 +253,24 @@ export function playAlarmSound(): void {
   try {
     audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     
-    // Create oscillator for alarm tone
     oscillator = audioContext.createOscillator();
     gainNode = audioContext.createGain();
     
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
     
-    // Alarm frequency pattern - alternating between two tones
     oscillator.frequency.value = 800;
     oscillator.type = 'square';
-    
-    // Maximum volume
     gainNode.gain.value = 1.0;
     
     oscillator.start();
     isPlaying = true;
     
-    // Create pulsing effect by modulating frequency
     let highFreq = true;
-    const pulseInterval = setInterval(() => {
+    pulseInterval = window.setInterval(() => {
       if (oscillator && isPlaying) {
         oscillator.frequency.value = highFreq ? 600 : 900;
         highFreq = !highFreq;
-      } else {
-        clearInterval(pulseInterval);
       }
     }, 500);
     
@@ -223,11 +282,16 @@ export function playAlarmSound(): void {
 export function stopAlarmSound(): void {
   isPlaying = false;
   
+  if (pulseInterval) {
+    clearInterval(pulseInterval);
+    pulseInterval = null;
+  }
+  
   if (oscillator) {
     try {
       oscillator.stop();
       oscillator.disconnect();
-    } catch (e) {
+    } catch {
       // Ignore errors if already stopped
     }
     oscillator = null;
