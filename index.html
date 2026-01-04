@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>LocAlarm - Location Alarm</title>
     <meta name="description" content="Never miss your stop! Get alerted when you approach your destination." />
     <meta name="author" content="LocAlarm" />
@@ -10,6 +10,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="LocAlarm" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
 
     <meta property="og:title" content="LocAlarm - Location Alarm" />
     <meta property="og:description" content="Never miss your stop! Get alerted when you approach your destination." />
@@ -22,6 +24,22 @@
 
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    
+    <style>
+      /* Fullscreen native app styling */
+      html, body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #0f172a;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+      }
+    </style>
   </head>
 
   <body>

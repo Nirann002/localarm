@@ -1,8 +1,14 @@
 import { motion } from "framer-motion";
-import { Vibrate, MapPin } from "lucide-react";
+import { Bell, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef } from "react";
-import { triggerVibration, stopVibration, type Destination } from "@/lib/locationUtils";
+import { 
+  triggerVibration, 
+  stopVibration, 
+  playAlarmSound, 
+  stopAlarmSound, 
+  type Destination 
+} from "@/lib/locationUtils";
 
 interface AlarmScreenProps {
   destination: Destination;
@@ -28,6 +34,9 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
       }
     }
 
+    // Start alarm sound immediately
+    playAlarmSound();
+
     // Start vibration immediately
     triggerVibration();
 
@@ -50,6 +59,7 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
 
     return () => {
       stopVibration();
+      stopAlarmSound();
       if (vibrateIntervalRef.current) {
         clearInterval(vibrateIntervalRef.current);
       }
@@ -61,6 +71,7 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
 
   const handleStop = () => {
     stopVibration();
+    stopAlarmSound();
     if (vibrateIntervalRef.current) {
       clearInterval(vibrateIntervalRef.current);
     }
@@ -72,7 +83,7 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
 
   return (
     <motion.div 
-      className="h-full flex flex-col bg-primary p-6 relative overflow-hidden"
+      className="h-full flex flex-col bg-primary p-6 relative overflow-hidden safe-area-inset"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
@@ -102,14 +113,14 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
 
       {/* Content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
-        {/* Vibration icon */}
+        {/* Bell icon with shake */}
         <motion.div 
           className="mb-8"
-          animate={{ rotate: [-10, 10, -10] }}
+          animate={{ rotate: [-15, 15, -15] }}
           transition={{ duration: 0.3, repeat: Infinity }}
         >
           <div className="w-28 h-28 rounded-full bg-primary-foreground/20 flex items-center justify-center backdrop-blur-sm">
-            <Vibrate className="w-14 h-14 text-primary-foreground" />
+            <Bell className="w-14 h-14 text-primary-foreground" />
           </div>
         </motion.div>
 
@@ -145,7 +156,7 @@ const AlarmScreen = ({ destination, onStop }: AlarmScreenProps) => {
       </div>
 
       {/* Action button */}
-      <div className="relative z-10">
+      <div className="relative z-10 safe-area-bottom">
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
