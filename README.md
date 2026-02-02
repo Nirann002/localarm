@@ -1,73 +1,85 @@
-# Welcome to your Lovable project
+# 🔔 LocAlarm — Location-Based Alarm for Commuters
 
-## Project info
+LocAlarm is a location-aware alarm system designed for daily commuters who often miss their stop after falling asleep on public transport.  
+Unlike traditional time-based alarms, LocAlarm triggers alerts based on **real-time GPS proximity** to a user-defined destination.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Sleep peacefully. Wake up at the right stop.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## 🚀 Features
 
-**Use Lovable**
+- 📍 Real-time GPS tracking with proximity-based alerts  
+- 🗺️ Interactive map using **OpenStreetMap + Leaflet**  
+- 🎯 Customizable alert radius (500 m – 5 km)  
+- 📳 Loud audio alarm + continuous haptic vibration  
+- 🌙 Dark, minimal UI optimized for night/early commutes  
+- 📱 Works as a **Progressive Web App (PWA)**  
+- 📦 Native Android/iOS support via **Capacitor**  
+- 📴 Offline-first support (tracking works without internet)  
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🧠 How It Works
 
-**Use your preferred IDE**
+LocAlarm continuously monitors the user’s live GPS position using the browser’s Geolocation API.  
+Distance to the destination is calculated using the **Haversine formula**, which accurately measures great-circle distance by accounting for Earth’s curvature.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+When the user enters the configured alert radius, the app triggers:
+- A full-screen visual alert  
+- A pulsing audio alarm  
+- Continuous haptic feedback (on supported devices)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+## 🛠️ Tech Stack
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
+### Frontend
+- React 18
 - TypeScript
-- React
-- shadcn-ui
+- Vite
 - Tailwind CSS
+- Framer Motion
 
-## How can I deploy this project?
+### Maps & Geolocation
+- Leaflet.js
+- OpenStreetMap
+- Nominatim Geocoding API
+- Browser Geolocation API
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Mobile & Native APIs
+- Capacitor.js
+- Haptics API
+- Wake Lock API
+- Status Bar & Splash Screen integration
 
-## Can I connect a custom domain to my Lovable project?
+### Offline Support
+- Service Workers
+- Workbox caching strategies
+- PWA configuration
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 🔒 Privacy & Data Policy
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- No user accounts  
+- No analytics or tracking  
+- No external data storage  
+- No Google APIs  
+- All location processing happens **on-device**  
+
+---
+
+## 🌐 Live Demo
+
+👉 **https://localarm.lovable.app**
+
+Open the link on your phone and select **“Add to Home Screen”** to use it like a native app.
+
+---
+
+## 📦 Local Development
+
+```bash
+npm install
+npm run dev
