@@ -27,7 +27,12 @@ const config: CapacitorConfig = {
     Haptics: {
       // Use native haptics for vibration
     },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon_config_sample',
+      iconColor: '#f59e0b',
+    },
   },
+
   android: {
     allowMixedContent: false,
     backgroundColor: '#0f172a',
