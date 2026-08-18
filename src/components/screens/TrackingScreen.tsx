@@ -282,7 +282,12 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
           transition={{ duration: 2, repeat: Infinity }}
         >
           <Navigation className="w-4 h-4" />
-          <span className="text-sm">GPS tracking active • Works offline</span>
+          <span className="text-sm">
+            {isNative
+              ? "GPS tracking active • Runs in background"
+              : "GPS tracking active • Works offline"}
+          </span>
+
         </motion.div>
       </div>
 
