@@ -11,6 +11,14 @@ import {
   releaseAudioSession,
   type Destination 
 } from "@/lib/locationUtils";
+import {
+  startLocationTracking,
+  ensureNotificationPermission,
+  setupNotificationChannel,
+  notifyArrival,
+  isNative,
+  type TrackerHandle,
+} from "@/lib/nativeTracking";
 
 interface TrackingScreenProps {
   destination: Destination;
@@ -21,9 +29,10 @@ interface TrackingScreenProps {
 const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps) => {
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
   const [eta, setEta] = useState<string>("Calculating...");
-  const watchIdRef = useRef<number | null>(null);
+  const trackerRef = useRef<TrackerHandle | null>(null);
   const hasTriggeredRef = useRef(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
 
   useEffect(() => {
     // Request notification permission
