@@ -28,6 +28,9 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
       Notification.requestPermission();
     }
 
+    // Keep the audio session alive so the alarm can sound with the screen off
+    primeAudio();
+
     // Request wake lock to keep screen on
     const requestWakeLock = async () => {
       if ('wakeLock' in navigator) {
@@ -40,9 +43,27 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
     };
     requestWakeLock();
 
+    const handleVisibility = () => {
+      keepAudioSessionAlive();
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Heartbeat: browsers throttle background timers, but this revives audio
+    // and the wake lock as soon as the app gets any execution time.
+    const heartbeat = window.setInterval(() => {
+      keepAudioSessionAlive();
+    }, 5000);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(heartbeat);
+      releaseAudioSession();
       if (wakeLockRef.current) {
         wakeLockRef.current.release();
+        wakeLockRef.current = null;
       }
     };
   }, []);
