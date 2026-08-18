@@ -1,8 +1,11 @@
-import { Capacitor } from '@capacitor/core';
-import { BackgroundGeolocation } from '@capacitor-community/background-geolocation';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import type { BackgroundGeolocationPlugin } from '@capacitor-community/background-geolocation';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
+const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
+
 export const isNative = Capacitor.isNativePlatform();
+
 
 export interface TrackedPosition {
   latitude: number;
