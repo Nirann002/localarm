@@ -40,7 +40,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
   const userMarkerRef = useRef<any>(null);
   const destMarkerRef = useRef<any>(null);
   const radiusCircleRef = useRef<any>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<number | null>(null);
 
   // Get user's current location
   useEffect(() => {
