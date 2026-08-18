@@ -4,16 +4,19 @@ import WelcomeScreen from "@/components/screens/WelcomeScreen";
 import DestinationScreen from "@/components/screens/DestinationScreen";
 import TrackingScreen from "@/components/screens/TrackingScreen";
 import AlarmScreen from "@/components/screens/AlarmScreen";
+import LocationGate from "@/components/screens/LocationGate";
 import {
   cacheDestination,
   getCachedDestination,
   clearCachedDestination,
+  primeAudio,
   type Destination,
 } from "@/lib/locationUtils";
 
 type Screen = "welcome" | "destination" | "tracking" | "alarm";
 
 const Index = () => {
+  const [locationReady, setLocationReady] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [destination, setDestination] = useState<Destination | null>(null);
 
