@@ -198,7 +198,7 @@ const DestinationScreen = ({ onBack, onConfirm }: DestinationScreenProps) => {
       return;
     }
 
-    searchTimeoutRef.current = setTimeout(async () => {
+    searchTimeoutRef.current = window.setTimeout(async () => {
       setIsSearching(true);
       setSearchError(null);
       try {
