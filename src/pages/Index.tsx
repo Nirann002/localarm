@@ -98,7 +98,15 @@ const Index = () => {
     }
   };
 
-  return <MobileFrame>{renderScreen()}</MobileFrame>;
+  return (
+    <MobileFrame>
+      {locationReady ? (
+        renderScreen()
+      ) : (
+        <LocationGate onGranted={() => setLocationReady(true)} />
+      )}
+    </MobileFrame>
+  );
 };
 
 export default Index;
