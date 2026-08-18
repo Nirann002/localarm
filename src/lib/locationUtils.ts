@@ -240,70 +240,11 @@ export function calculateETA(distanceMeters: number, speedKmh: number = 30): { m
   }
 }
 
-// Audio alarm using Web Audio API
-let audioContext: AudioContext | null = null;
-let oscillator: OscillatorNode | null = null;
-let gainNode: GainNode | null = null;
-let isPlaying = false;
-let pulseInterval: number | null = null;
-
-export function playAlarmSound(): void {
-  if (isPlaying) return;
-  
-  try {
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    oscillator = audioContext.createOscillator();
-    gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = 800;
-    oscillator.type = 'square';
-    gainNode.gain.value = 1.0;
-    
-    oscillator.start();
-    isPlaying = true;
-    
-    let highFreq = true;
-    pulseInterval = window.setInterval(() => {
-      if (oscillator && isPlaying) {
-        oscillator.frequency.value = highFreq ? 600 : 900;
-        highFreq = !highFreq;
-      }
-    }, 500);
-    
-  } catch (err) {
-    console.error('Audio playback error:', err);
-  }
-}
-
-export function stopAlarmSound(): void {
-  isPlaying = false;
-  
-  if (pulseInterval) {
-    clearInterval(pulseInterval);
-    pulseInterval = null;
-  }
-  
-  if (oscillator) {
-    try {
-      oscillator.stop();
-      oscillator.disconnect();
-    } catch {
-      // Ignore errors if already stopped
-    }
-    oscillator = null;
-  }
-  
-  if (gainNode) {
-    gainNode.disconnect();
-    gainNode = null;
-  }
-  
-  if (audioContext) {
-    audioContext.close();
-    audioContext = null;
-  }
-}
+// Background-capable alarm audio lives in alarmAudio.ts
+export {
+  playAlarmSound,
+  stopAlarmSound,
+  primeAudio,
+  keepAudioSessionAlive,
+  releaseAudioSession,
+} from "./alarmAudio";
