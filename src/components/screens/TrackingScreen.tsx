@@ -35,10 +35,9 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
 
 
   useEffect(() => {
-    // Request notification permission
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    // Notification permission + Android alarm channel
+    ensureNotificationPermission();
+    setupNotificationChannel();
 
     // Keep the audio session alive so the alarm can sound with the screen off
     primeAudio();
@@ -80,66 +79,57 @@ const TrackingScreen = ({ destination, onStop, onArrival }: TrackingScreenProps)
     };
   }, []);
 
-  // GPS tracking
+  // GPS tracking (background foreground-service watcher on native, web fallback otherwise)
   useEffect(() => {
-    if (!("geolocation" in navigator)) {
-      console.error("Geolocation not supported");
-      return;
-    }
+    let cancelled = false;
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, speed } = position.coords;
-        
-        // Cache location for offline use
-        cacheLocation(latitude, longitude);
-        
-        const distance = calculateDistance(
-          latitude,
-          longitude,
-          destination.lat,
-          destination.lng
-        );
-        
-        setCurrentDistance(Math.round(distance));
-        
-        // Calculate ETA using GPS speed if available
-        const speedKmh = speed && speed > 0 ? (speed * 3.6) : 30;
-        const etaResult = calculateETA(distance, speedKmh);
-        setEta(etaResult.text);
+    const handlePosition = ({
+      latitude,
+      longitude,
+      speed,
+    }: { latitude: number; longitude: number; speed: number | null }) => {
+      // Cache location for offline use
+      cacheLocation(latitude, longitude);
 
-        // Check if within radius (trigger only once)
-        if (distance <= destination.radius && !hasTriggeredRef.current) {
-          hasTriggeredRef.current = true;
-          if (watchIdRef.current !== null) {
-            navigator.geolocation.clearWatch(watchIdRef.current);
-          }
-          onArrival();
-        }
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 5000,
+      const distance = calculateDistance(latitude, longitude, destination.lat, destination.lng);
+      setCurrentDistance(Math.round(distance));
+
+      // Calculate ETA using GPS speed if available
+      const speedKmh = speed && speed > 0 ? speed * 3.6 : 30;
+      setEta(calculateETA(distance, speedKmh).text);
+
+      // Check if within radius (trigger only once)
+      if (distance <= destination.radius && !hasTriggeredRef.current) {
+        hasTriggeredRef.current = true;
+        notifyArrival(destination.name.split(',')[0]);
+        trackerRef.current?.stop();
+        onArrival();
       }
-    );
+    };
+
+    startLocationTracking(handlePosition, (message) => {
+      console.error('Location error:', message);
+    }).then((handle) => {
+      if (cancelled) {
+        handle.stop();
+        return;
+      }
+      trackerRef.current = handle;
+    });
 
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
+      cancelled = true;
+      trackerRef.current?.stop();
+      trackerRef.current = null;
     };
   }, [destination, onArrival]);
 
   const handleStop = () => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-    }
+    trackerRef.current?.stop();
+    trackerRef.current = null;
     onStop();
   };
+
 
   const formatDistance = (distance: number | null): string => {
     if (distance === null) return "Calculating...";
