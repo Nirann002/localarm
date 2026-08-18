@@ -38,6 +38,12 @@ const Index = () => {
   }, []);
 
   const handleConfirmDestination = (dest: Destination) => {
+    // Unlock audio inside the user gesture so the alarm can sound later
+    // even if the screen is off when we arrive.
+    primeAudio();
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
     setDestination(dest);
     cacheDestination(dest);
     setCurrentScreen("tracking");
