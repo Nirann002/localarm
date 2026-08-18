@@ -4,16 +4,19 @@ import WelcomeScreen from "@/components/screens/WelcomeScreen";
 import DestinationScreen from "@/components/screens/DestinationScreen";
 import TrackingScreen from "@/components/screens/TrackingScreen";
 import AlarmScreen from "@/components/screens/AlarmScreen";
+import LocationGate from "@/components/screens/LocationGate";
 import {
   cacheDestination,
   getCachedDestination,
   clearCachedDestination,
+  primeAudio,
   type Destination,
 } from "@/lib/locationUtils";
 
 type Screen = "welcome" | "destination" | "tracking" | "alarm";
 
 const Index = () => {
+  const [locationReady, setLocationReady] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [destination, setDestination] = useState<Destination | null>(null);
 
@@ -35,6 +38,12 @@ const Index = () => {
   }, []);
 
   const handleConfirmDestination = (dest: Destination) => {
+    // Unlock audio inside the user gesture so the alarm can sound later
+    // even if the screen is off when we arrive.
+    primeAudio();
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
     setDestination(dest);
     cacheDestination(dest);
     setCurrentScreen("tracking");
@@ -89,7 +98,15 @@ const Index = () => {
     }
   };
 
-  return <MobileFrame>{renderScreen()}</MobileFrame>;
+  return (
+    <MobileFrame>
+      {locationReady ? (
+        renderScreen()
+      ) : (
+        <LocationGate onGranted={() => setLocationReady(true)} />
+      )}
+    </MobileFrame>
+  );
 };
 
 export default Index;
