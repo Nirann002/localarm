@@ -6,6 +6,9 @@ import {
   calculateDistance, 
   calculateETA, 
   cacheLocation,
+  primeAudio,
+  keepAudioSessionAlive,
+  releaseAudioSession,
   type Destination 
 } from "@/lib/locationUtils";
 
